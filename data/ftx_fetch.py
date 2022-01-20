@@ -54,25 +54,10 @@ def data_preprocess():
         temp = pd.read_csv(f"FTX_{index[i]}PERP.csv")
         temp.set_index("Timestamp", inplace = True)
         temp.rename(columns = {"Price":index[i]}, inplace = True)
+        temp = np.log(temp)
         data.append(temp)
     df1 = pd.concat(data, join = "outer", axis = 1)
     print(df1)
     df1.to_pickle('FTX_PERP.pkl')
 
-def data_seperate():
-    data = pd.read_pickle('FTX_PERP.pkl')
-    coint_day_period = 90
-    timeperiod = 86400000 * coint_day_period 
-    N = len(data.index)
-    n = len(data.columns)
-    temp_1 = data.index[0]
-    count = 0
-    while temp_1 < data.index[N-1]:
 
-        temp_2 = temp_1 + timeperiod
-        temp_data = data.loc[temp_1:temp_2,:]
-        temp_1 = temp_1 + int(coint_day_period/3)*86400000 
-        temp_data.to_csv(f'seperate_data/FTX_PERP_seperate_{count}.csv')
-        count += 1
-    f.close()
-    print(count)
