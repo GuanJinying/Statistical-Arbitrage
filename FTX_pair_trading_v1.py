@@ -11,7 +11,7 @@ file1.close()
 logging.basicConfig(level = logging.INFO, filename = 'FTX_pair_trading_V1.log', filemode = 'a', format = '%(message)s')
 
 class pair_trading_strategy():
-    def __init__(self, data_file_name, spread_data_file_name, initial_amount, trading_fee_percent, maximum_leverage_ratio, normal_leverage_ratio, coint_day_period):
+    def __init__(self, data_file_name, spread_data_file_name, initial_amount, trading_fee_percent, maximum_leverage_ratio, normal_leverage_ratio, coint_day_period, enter_spread, close_spread, tick):
         self.initial_amount = initial_amount
         self.account = initial_amount
         self.account_history = []
@@ -27,13 +27,16 @@ class pair_trading_strategy():
         self.sub_position_value = []
         self.peak_value = initial_amount
         self.maximum_drawdown = 0
+        self.enter_spread = enter_spread
+        self.close_spread = close_spread
+        self.beta = []
         
         timeperiod = 86400000 * coint_day_period 
+        self.tick = tick
         self.data = pd.read_pickle(data_file_name)
-        self.data = self.data.loc[[x for x in self.data.index if x >= (self.data.index[0]+timeperiod+60000)],:]
-        f = open(spread_data_file_name, 'rb')
-        self.spread = pickle.load(f)
-        f.close()
+        self.data = self.data.loc[[x for x in self.data.index if x%(60000*tick) == 0],:]
+        self.data = self.data.loc[[x for x in self.data.index if x >= (self.data.index[0] + timeperiod + 60000*tick)],:]
+        self.spread = pd.read_pickle(spread_data_file_name)
         self.position = np.zeros(len(self.data.columns))
         self.current_price = np.zeros(len(self.data.columns))
         self.previous_price = np.zeros(len(self.data.columns))
@@ -59,12 +62,14 @@ class pair_trading_strategy():
             self.sub_account_cash()
             self.current_spread = self.current_pair_spread[2]
             self.M = len(self.coin_list)
+            self.beta = self.current_pair_spread[3]
         if len(self.current_pair_spread) == 1:
             self.coin_list = []
             self.sub_position_value = []
             self.sub_account = []
             self.current_spread = []
             self.M = 0
+            self.beta = []
 
     def marking_to_market(self):
         for j in range(self.M):
@@ -89,7 +94,7 @@ class pair_trading_strategy():
 
     # change coin_list every month and close all positions 
     def change_coin_list(self, i):
-        if self.spread[self.spread_index][0] + int(self.coint_day_period/3)*86400000 - 60000 < self.data.index[i]:
+        if self.spread[self.spread_index][0] + int(self.coint_day_period/3)*86400000 < self.data.index[i]:
             self.spread_index += 1
             self.current_pair_spread = self.spread[self.spread_index]
             next_position = np.zeros(len(self.data.columns))
@@ -108,8 +113,11 @@ class pair_trading_strategy():
         temp_position = np.copy(self.position)
         coin_1_price = self.current_price[coin_1_index]
         coin_2_price = self.current_price[coin_2_index]
-        position_1 = math.floor((self.sub_account[j]/coin_1_price)*100*self.normal_leverage_ratio/2)/100.0*signal_1
-        position_2 = math.floor(abs(position_1)*(coin_1_price/coin_2_price)*100)/100.0*signal_2
+        temp_position_1 = min(self.sub_account[j]/coin_1_price, abs(self.sub_account[j]/(self.beta[j]*coin_2_price)))
+        position_1 = math.floor(temp_position_1*100*self.normal_leverage_ratio/2)/100.0*signal_1
+        position_2 = math.floor(abs(position_1)*self.beta[j]*100)/100.0*signal_2
+        if self.beta[j] < 0:
+            position_2 = position_2*(-1)
         temp_position[coin_1_index] = position_1
         temp_position[coin_2_index] = position_2
         self.sub_position_value[j] = abs(position_1)*coin_1_price + abs(position_2)*coin_2_price
@@ -118,7 +126,7 @@ class pair_trading_strategy():
         self.position = np.copy(temp_position)
         coin_1 = self.data.columns[coin_1_index]
         coin_2 = self.data.columns[coin_2_index]
-        self.log(i, f"Enter market, spread:{self.current_spread[j].loc[self.data.index[i], 'spread']}, {coin_1}_position: {position_1}, {coin_2}_position: {position_2}")
+        self.log(i, f"Enter market, spread:{self.current_spread[j].loc[self.data.index[i]]}, {coin_1}_position: {position_1}, {coin_2}_position: {position_2}")
 
     def close_position(self, coin_1_index, coin_2_index, i, j):
         temp_position = np.copy(self.position)
@@ -130,7 +138,7 @@ class pair_trading_strategy():
         self.position = np.copy(temp_position)
         coin_1 = self.data.columns[coin_1_index]
         coin_2 = self.data.columns[coin_2_index]
-        self.log(i, f"Close position for {coin_1} and {coin_2}, spread:{self.current_spread[j].loc[self.data.index[i], 'spread']}, {coin_1}_position: {self.position[coin_1_index]}, {coin_2}_position: {self.position[coin_2_index]}")
+        self.log(i, f"Close position for {coin_1} and {coin_2}, spread:{self.current_spread[j].loc[self.data.index[i]]}, {coin_1}_position: {self.position[coin_1_index]}, {coin_2}_position: {self.position[coin_2_index]}")
 
     def account_summary(self, i):
         self.previous_price = np.copy(self.current_price)
@@ -179,19 +187,21 @@ class pair_trading_strategy():
                 coin_2 = self.coin_list[j][1]
                 coin_1_index = list(self.data.columns).index(coin_1)
                 coin_2_index = list(self.data.columns).index(coin_2)
-                if pd.isnull(self.current_spread[j].loc[self.data.index[i], 'spread']):
+                if pd.isnull(self.current_spread[j].loc[self.data.index[i]]):
                     continue
-                if self.current_spread[j].loc[self.data.index[i],'spread'] >= 3 and self.position[coin_1_index] == 0 and self.position[coin_2_index] == 0:
+                if self.current_spread[j].loc[self.data.index[i]] >= self.enter_spread and self.position[coin_1_index] == 0 and self.position[coin_2_index] == 0:
                     self.enter_market(coin_1_index, coin_2_index, -1, 1, i, j)
-                elif self.current_spread[j].loc[self.data.index[i], 'spread'] <= -3 and self.position[coin_1_index] == 0 and self.position[coin_2_index] == 0:
+                elif self.current_spread[j].loc[self.data.index[i]] <= self.enter_spread*(-1) and self.position[coin_1_index] == 0 and self.position[coin_2_index] == 0:
                     self.enter_market(coin_1_index, coin_2_index, 1, -1, i, j)
-                elif abs(self.current_spread[j].loc[self.data.index[i], 'spread']) <= 0.1 and self.position[coin_1_index] != 0 and self.position[coin_2_index] != 0:
+                elif abs(self.current_spread[j].loc[self.data.index[i]]) <= self.close_spread and self.position[coin_1_index] != 0 and self.position[coin_2_index] != 0:
                     self.close_position(coin_1_index, coin_2_index, i, j)
             self.account_summary(i)
         #self.backtest_result()
 
-if __name__ == "__main__":
-    strategy1 = pair_trading_strategy('FTX_PERP.pkl', 'FTX_spread_100.pkl', 100000, 0.00065, 4, 1, 90)
-    strategy1.fit()
+# if __name__ == "__main__":
+#     enter_spread = 3
+#     close_spread = 0.1
+#     strategy1 = pair_trading_strategy('FTX_PERP.pkl', 'FTX_spread_500.pkl', 100000, 0.00065, 4, 1, 90, enter_spread, close_spread)
+#     strategy1.fit()
 
     
