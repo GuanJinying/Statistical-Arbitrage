@@ -11,7 +11,8 @@ There are several problems we need to consider: 1. If we select two pairs like B
 
 One thought is to calculate the spread Y<sub>t</sub> - &beta;X<sub>t</sub> and pick the one with the most largest variance of the spread. Why? Because if the spread is stationary and spread has a larger variance, then we might have more profits to make than the smaller one. I then use OLS to get the &beta; we want and there is one subtle problem: we need to decide the exogenerous variable and the endogerous variable (I have tried the basic OLS combining adfuller test to compare with conitgeration python package and they show different answers). (Just ignore this for simplicity)
 
-After the selection process, we first use ARMA model to modify the spread as we can transform X<sub>t</sub> - X<sub>t-1</sub> = (a - bX<sub>t</sub>)&tau; + &delta;sqrt(&tau;)&epsilon;<sub>t</sub>
+After the selection process, we first use ARMA model to modify the spread as we can transform X<sub>t</sub> - X<sub>t-1</sub> = (a - bX<sub>t</sub>)&tau; + &delta;sqrt(&tau;)&epsilon;<sub>t</sub> into X<sub>t+1</sub> = A + BX<sub>t</sub> + C&epsilon;<sub>t+1</sub> and add the measure uncertainty Y<sub>t</sub> = X<sub>t</sub> + Dw<sub>t</sub>. Hence Y<sub>t</sub> is a ARMA(1,2) model and we can use the ARMA model as our first guess for the parameters of the OU process. Then, we can use the maximum likelihood method to estimate the parameters using the loglikelihood function for OU process based on Hu and Long(2007). 
 
+After we get the parameters, we can refer to Zhengqin Zeng & Chi-Guhn Lee's result(2014): Pairs trading: optimal thresholds and profitability. The paper 
 
 (To be continued)
