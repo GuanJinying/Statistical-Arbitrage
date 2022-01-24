@@ -11,9 +11,7 @@ There are several problems we need to consider: 1. If we select two pairs like B
 
 One thought is to calculate the spread Y<sub>t</sub> - &beta;X<sub>t</sub> and pick the one with the most largest variance of the spread. Why? Because if the spread is stationary and spread has a larger variance, then we might have more profits to make than the smaller one. I then use OLS to get the &beta; we want and there is one subtle problem: we need to decide the exogenerous variable and the endogerous variable (I have tried the basic OLS combining adfuller test to compare with conitgeration python package and they show different answers). (Just ignore this for simplicity)
 
-After the selection process, we first use ARMA model to modify the spread as we can transform 
-```math 
-X<sub>t</sub> - X<sub>t-1</sub> = (a - bX<sub>t</sub>)&tau; + &delta;\sqrt{n}&epsilon;<sub>t</sub>
-```
+After the selection process, we first use ARMA model to modify the spread as we can transform X<sub>t</sub> - X<sub>t-1</sub> = (a - bX<sub>t</sub>)&tau; + &delta;sqrt(&tau;)&epsilon;<sub>t</sub>
+
 
 (To be continued)
