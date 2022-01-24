@@ -54,7 +54,7 @@ def data_preprocess():
         temp = pd.read_csv(f"FTX_{index[i]}PERP.csv")
         temp.set_index("Timestamp", inplace = True)
         temp.rename(columns = {"Price":index[i]}, inplace = True)
-        temp = np.log(temp)
+        temp[f'{index[i]}_log'] = np.log(temp[f'{index[i]}'])
         data.append(temp)
     df1 = pd.concat(data, join = "outer", axis = 1)
     print(df1)
