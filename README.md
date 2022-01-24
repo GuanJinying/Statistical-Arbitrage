@@ -11,16 +11,6 @@ There are several problems we need to consider: 1. If we select two pairs like B
 
 One thought is to calculate the spread Y<sub>t</sub> - &beta;X<sub>t</sub> and pick the one with the most largest variance of the spread. Why? Because if the spread is stationary and spread has a larger variance, then we might have more profits to make than the smaller one. I then use OLS to get the &beta; we want and there is one subtle problem: we need to decide the exogenerous variable and the endogerous variable (I have tried the basic OLS combining adfuller test to compare with conitgeration python package and they show different answers). (Just ignore this for simplicity)
 
-If we can finished the selection step, then we can go to the signal construction part. One thought is to use the OU process to modify the spread we get. According to Elliott et al. (2005), they provide a solid method called Shumway and Stoffer smoother approach to get the parameter A, B, C, D for model X<sub>t+1</sub> = A + BX<sub>t</sub> + C&epsilon;<sub>t+1</sub> and Y<sub>t</sub> = X<sub>t</sub> + Dw<sub>t</sub>. Then we can use the first passing time for the OU process to calculate the average profits per time unit and get the optimal threshold for each pair each 3-month period. Then we can use this threhsold to trade in the next month for these pairs. (Undergoing)
-
-New problems arose: According to the paper, the first passage time for OU process with the largest probability is</br>
-<p align="center">
-<img width="138" alt="formular" src="https://user-images.githubusercontent.com/63221622/150322256-bbb60fb1-faf1-4eba-ba4f-09b9e3aa239e.png">
-</p>
-However, the graph pf this function is like:</br>
-<p align="center">
-<img width="171" alt="average_time" src="https://user-images.githubusercontent.com/63221622/150321590-93ba2ab3-b086-4023-9e1e-7430c9727eb0.png">
-</p>
-where I cannot find the maximal value. Need to go through the theory behind the first passage time.
+After the selection process, we first use ARMA model to modify the spread as we can transform X<sub>t</sub> - X<sub>t-1</sub> = (a - bX<sub>t</sub>)&tau; + &delta;$`\sqrt{&tau;}`$&epsilon;<sub>t</sub>
 
 (To be continued)
