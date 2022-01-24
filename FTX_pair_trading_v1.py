@@ -90,7 +90,7 @@ class pair_trading_strategy():
 
     def log(self, i, text):
         pass
-        #logging.info(f"{self.data.index[i]} {text}")
+        logging.info(f"{self.data.index[i]} {text}")
 
     # change coin_list every month and close all positions 
     def change_coin_list(self, i):
@@ -158,20 +158,20 @@ class pair_trading_strategy():
         percentage_annualized_pnl_return = percentage_pnl_return/(number_of_days/365)
         logging.info('Annualised Pnl return: {:.2f}%'.format(percentage_annualized_pnl_return))
         #calculate daily sharpe ratio
-        portfolio = pd.DataFrame({'time':self.data.index, 'portfolio':self.account})
+        portfolio = pd.DataFrame({'time':self.data.index, 'portfolio':self.account_history})
         portfolio1 = portfolio.copy()
         portfolio1['time'] = pd.to_datetime(portfolio['time'].apply(lambda x: int(x/1000)), unit = 's')
         portfolio1.set_index('time', inplace = True)
-        plt.figure(figsize=(16, 9), dpi=80)
+        fig = plt.gcf()
+        fig.set_size_inches(200, 30)
         portfolio1.plot(title = 'Portfolio value from 2020 to 2022')
         plt.show()
-        plt.savefig('Portfolio_value.png')
+        plt.savefig('Portfolio_value.png', dpi = 500)
         portfolio.set_index('time', inplace = True)
-        start_ = portfolio.index[0]%86400000
-        portfolio2 = portfolio.loc[[x for x in portfolio.index if x%86400000 == start_],:]/portfolio['portfolio'][0]
-        pnl_1 = portfolio2.shift() - portfolio2
-        sharpe_ratio = pnl_1.mean()/pnl_1.std()
-        logging.info('Daily Sharpe ratio: {:.2f}'.format(sharpe_ratio))
+
+        # sharpe_ratio = np.mean(portfolio['portfolio'].pct_change())/np.std(portfolio['portfolio'].pct_change())
+        # print(sharpe_ratio)
+        # logging.info('Daily Sharpe ratio: {:.2f}'.format(sharpe_ratio))
         logging.info('Maximum Drawdown: {:.2f}%'.format(self.maximum_drawdown))
 
     def fit(self):
@@ -196,12 +196,13 @@ class pair_trading_strategy():
                 elif abs(self.current_spread[j].loc[self.data.index[i]]) <= self.close_spread and self.position[coin_1_index] != 0 and self.position[coin_2_index] != 0:
                     self.close_position(coin_1_index, coin_2_index, i, j)
             self.account_summary(i)
-        #self.backtest_result()
+        self.backtest_result()
 
-# if __name__ == "__main__":
-#     enter_spread = 3
-#     close_spread = 0.1
-#     strategy1 = pair_trading_strategy('FTX_PERP.pkl', 'FTX_spread_500.pkl', 100000, 0.00065, 4, 1, 90, enter_spread, close_spread)
-#     strategy1.fit()
+if __name__ == "__main__":
+    enter_spread = 4.5
+    close_spread = 0.1
+    tick = 200
+    strategy1 = pair_trading_strategy('data/FTX_PERP_training.pkl', 'temp_data/FTX_spread_200.pkl', 100000, 0.00065, 4, 1, 90, enter_spread, close_spread, 200)
+    strategy1.fit()
 
     
