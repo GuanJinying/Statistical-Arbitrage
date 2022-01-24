@@ -1,11 +1,12 @@
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
-from utils import my_KalmanFilter
+#from utils import my_KalmanFilter
 import numpy as np
 import pandas as pd
 import pickle
 import statsmodels.tsa.stattools as ts
 from sklearn.linear_model import LinearRegression
+from statsmodels.tsa.arima.model import ARIMA
 def seperate_data():
     data = pd.read_pickle("FTX_PERP.pkl")
     f_3 = open("selected_pair_90day.pkl", 'rb')
@@ -30,7 +31,7 @@ def seperate_data():
 def selected_pair_process(tick):  
     data = pd.read_pickle("data/FTX_PERP_training.pkl")
     data = data.loc[[x for x in data.index if x%(60000*tick) == 0],:]
-    selected_pair = pd.read_pickle('data/selected_pair_90day_training.pkl')
+    selected_pair = pd.read_pickle('data/selected_pair_90day.pkl')
     M = len(selected_pair)
     coint_day_period = 90
     timeperiod = 86400000 * coint_day_period
@@ -42,7 +43,7 @@ def selected_pair_process(tick):
             selected_pair_new.append(pair_temp)
             continue
 
-        #calculate spread of each selected pair using Kalman Filter then calculate the variance of spread
+        #calculate spread of each selected pair using linear regression then calculate the variance of spread
         temp_selected_pair = pair_temp[1:]
         temp_start = pair_temp[0] - timeperiod
         temp_end = pair_temp[0]
@@ -52,7 +53,7 @@ def selected_pair_process(tick):
         temp_previous_spread = []
 
         for j in range(len(temp_selected_pair)):
-            temp_data_1 = temp_data.loc[:,[temp_selected_pair[j][0], temp_selected_pair[j][1]]].dropna() #Since some data have nan value, we have to drop that and combine it after the calculation
+            temp_data_1 = temp_data.loc[:,[f'{temp_selected_pair[j][0]}_log', f'{temp_selected_pair[j][1]}_log']].dropna() #Since some data have nan value, we have to drop that and combine it after the calculation
             temp_data1 = temp_data_1.iloc[:,0]
             temp_data2 = temp_data_1.iloc[:,1]
             temp_beta_ = LinearRegression().fit(np.array(temp_data2).reshape(-1,1),np.array(temp_data1)).coef_[0]
@@ -89,8 +90,8 @@ def selected_pair_process(tick):
     pickle.dump(selected_pair_new, f)
     f.close()
     
-# Calculate the spread using Kalman Filter of the selected pairs we get from the function above
-def get_spread(rolling_period, tick): 
+# Calculate the spread using the beta we calculated before
+def get_spread(tick): 
     coint_day_period = 90
     timeperiod = 86400000 * coint_day_period
     selected_pair_info = pd.read_pickle(f'temp_data/selected_pair_new_{tick}.pkl')
@@ -116,7 +117,7 @@ def get_spread(rolling_period, tick):
         
         for j in range(temp_M):
             temp_data = data.loc[[x for x in data.index if x >= temp_start and x <= temp_end],:]
-            temp_data_1 = temp_data.loc[:,[temp_selected_pair[j][0], temp_selected_pair[j][1]]]
+            temp_data_1 = temp_data.loc[:,[f'{temp_selected_pair[j][0]}_log', f'{temp_selected_pair[j][1]}_log']]
             temp_data1 = temp_data_1.iloc[:,0]
             temp_data2 = temp_data_1.iloc[:,1]
             temp_spread = temp_data1 - temp_previous_beta[j]*temp_data2
@@ -125,12 +126,13 @@ def get_spread(rolling_period, tick):
             temp_normalize_spread_ = temp_normalize_spread_.loc[[x for x in temp_normalize_spread_.index if x >= temp_start]]
             temp_normalize_spread.append(temp_normalize_spread_)
         spread.append([temp_start,temp_selected_pair,temp_normalize_spread, temp_previous_beta])
-    f_2 = open(f'temp_data/FTX_spread_{rolling_period}_{tick}.pkl','wb')
+    f_2 = open(f'temp_data/FTX_spread_{tick}.pkl','wb')
     pickle.dump(spread, f_2)
     f_2.close()
 
 def selected_pair_spread_check_stationary(tick):  
     selected_pair_info = pd.read_pickle(f'temp_data/selected_pair_new_{tick}.pkl')
+    data = pd.read_pickle('data/FTX_PERP_training.pkl')
     M = len(selected_pair_info)
     for i in range(M):
         temp_pair_info = selected_pair_info[i]
@@ -138,7 +140,6 @@ def selected_pair_spread_check_stationary(tick):
         if temp_start >= data.index[-1]:
             continue
         if len(temp_pair_info) == 1:
-            spread.append([temp_start])
             continue
         temp_previous_spread = temp_pair_info[3]
         temp_selected_pair = temp_pair_info[2]
@@ -151,10 +152,11 @@ def selected_pair_spread_check_stationary(tick):
         print(temp_selected_pair)
         print(temp_p_value)
     
-def spread_modify(rolling_period, tick):
+def spread_modify(tick):
     data = pd.read_pickle('data/FTX_PERP_training.pkl')
-    selected_pair_info = pd.read_pickle('temp_data/FTX_spread_{rolling_period}_{tick}.pkl')
+    selected_pair_info = pd.read_pickle(f'temp_data/FTX_spread_{tick}.pkl')
     M = len(selected_pair_info)
+    spread = []
     for i in range(M):
         temp_pair_info = selected_pair_info[i]
         temp_start = temp_pair_info[0]
@@ -170,13 +172,8 @@ def spread_modify(rolling_period, tick):
         temp_M = len(temp_selected_pair)
         for j in range(temp_M):
             temp_N = len(temp_spread[j])
-            delta = 0.0001
-            V_e = 0.1
-            mkf = my_KalmanFilter(delta, V_e)
-            for k in range(temp_N - 1):
-                mkf.update(temp_spread[j].iloc[k], temp_spread[j].iloc[k+1])
-                
+            
 
 # selected_pair_info = pd.read_pickle('selected_pair_new_1.pkl')
 # get_spread(100, 1)
-
+spread_modify(1)
