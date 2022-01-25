@@ -1,6 +1,7 @@
 # import os
 # os.environ['OPENBLAS_NUM_THREADS'] = '1'
 #from utils import my_KalmanFilter
+from importlib_metadata import re
 import numpy as np
 import pandas as pd
 import pickle
@@ -8,6 +9,7 @@ import statsmodels.tsa.stattools as ts
 from sklearn.linear_model import LinearRegression
 from statsmodels.tsa.arima.model import ARIMA
 import utils
+import matplotlib.pyplot as plt
 
 def seperate_data():
     data = pd.read_pickle("data/FTX_PERP.pkl")
@@ -31,7 +33,7 @@ def seperate_data():
 
 # pick out the pairs from the selected pairs we get from FTX_data_process_1.py with larger variance spread
 def selected_pair_process(tick):  
-    data = pd.read_pickle("data/FTX_PERP_training.pkl")
+    data = pd.read_pickle("data/FTX_PERP.pkl")
     data = data.loc[[x for x in data.index if x%(60000*tick) == 0],:]
     selected_pair = pd.read_pickle('data/selected_pair_90day.pkl')
     M = len(selected_pair)
@@ -58,10 +60,10 @@ def selected_pair_process(tick):
         temp_previous_spread = []
 
         for j in range(len(temp_selected_pair)):
-            temp_data_1 = temp_data.loc[:,[f'{temp_selected_pair[j][0]}_log', f'{temp_selected_pair[j][1]}_log']].dropna() #Since some data have nan value, we have to drop that and combine it after the calculation
+            #temp_data_1 = temp_data.loc[:,[f'{temp_selected_pair[j][0]}_log', f'{temp_selected_pair[j][1]}_log']].dropna() #Since some data have nan value, we have to drop that and combine it after the calculation
+            temp_data_1 = temp_data.loc[:,[f'{temp_selected_pair[j][0]}', f'{temp_selected_pair[j][1]}']].dropna() #Since some data have nan value, we have to drop that and combine it after the calculation
             temp_data1 = temp_data_1.iloc[:,0]
             temp_data2 = temp_data_1.iloc[:,1]
-            
             temp_result = LinearRegression().fit(np.array(temp_data2).reshape(-1, 1), np.array(temp_data1))
             temp_beta_ = temp_result.coef_[0]
             temp_intercept_ = temp_result.intercept_
@@ -103,7 +105,7 @@ def get_spread(tick):
     coint_day_period = 90
     timeperiod = 86400000 * coint_day_period
     selected_pair_info = pd.read_pickle(f'temp_data/selected_pair_new_{tick}.pkl')
-    data = pd.read_pickle('data/FTX_PERP_training.pkl')
+    data = pd.read_pickle('data/FTX_PERP.pkl')
     data = data.loc[[x for x in data.index if x%(60000*tick) == 0],:]
     M = len(selected_pair_info)
     spread = []
@@ -126,15 +128,17 @@ def get_spread(tick):
         
         for j in range(temp_M):
             temp_data = data.loc[[x for x in data.index if x >= temp_start and x <= temp_end],:]
-            temp_data_1 = temp_data.loc[:,[f'{temp_selected_pair[j][0]}_log', f'{temp_selected_pair[j][1]}_log']]
+            #temp_data_1 = temp_data.loc[:,[f'{temp_selected_pair[j][0]}_log', f'{temp_selected_pair[j][1]}_log']]
+            temp_data_1 = temp_data.loc[:,[f'{temp_selected_pair[j][0]}', f'{temp_selected_pair[j][1]}']]
             temp_data1 = temp_data_1.iloc[:,0]
             temp_data2 = temp_data_1.iloc[:,1]
             temp_spread = temp_data1 - temp_previous_beta[j]*temp_data2 - temp_intercept[j]
             temp_combine_spread = pd.concat([temp_previous_spread[j],temp_spread])
-            temp_normalize_spread_ = (temp_combine_spread - temp_previous_spread[j].mean())/temp_previous_spread[j].std()
+            #temp_normalize_spread_ = (temp_combine_spread - temp_previous_spread[j].mean())/temp_previous_spread[j].std()
+            temp_normalize_spread_ = temp_combine_spread
             temp_normalize_spread_ = temp_normalize_spread_.loc[[x for x in temp_normalize_spread_.index if x >= temp_start]]
             temp_normalize_spread.append(temp_normalize_spread_)
-        spread.append([temp_start,temp_selected_pair,temp_normalize_spread, temp_previous_beta])
+        spread.append([temp_start, temp_selected_pair, temp_normalize_spread, temp_previous_beta, temp_previous_spread])
     f_2 = open(f'temp_data/FTX_spread_{tick}.pkl','wb')
     pickle.dump(spread, f_2)
     f_2.close()
@@ -162,34 +166,44 @@ def selected_pair_spread_check_stationary(tick):
         print(temp_p_value)
     
 def spread_modify(tick):
-    data = pd.read_pickle('data/FTX_PERP_training.pkl')
-    selected_pair_info = pd.read_pickle(f'temp_data/FTX_spread_{tick}.pkl')
-    M = len(selected_pair_info)
+    data = pd.read_pickle('data/FTX_PERP.pkl')
+    spread_info = pd.read_pickle(f'temp_data/FTX_spread_{tick}.pkl')
+    M = len(spread_info)
     spread = []
     for i in range(M):
-        temp_pair_info = selected_pair_info[i]
-        temp_start = temp_pair_info[0]
+        temp_spread_info = spread_info[i]
+        temp_start = temp_spread_info[0]
         if temp_start >= data.index[-1]:
             continue
-        if len(temp_pair_info) == 1:
+        if len(temp_spread_info) == 1:
             spread.append([temp_start])
             continue
         temp_parameter = []
-        temp_selected_pair = temp_pair_info[1]
-        temp_spread = temp_pair_info[2]
-        temp_previous_beta = temp_pair_info[3]
+        temp_spread = temp_spread_info[4]
+        temp_selected_pair = temp_spread_info[1]
         temp_M = len(temp_selected_pair)
         for j in range(temp_M):
-            temp_N = len(temp_spread[j])
-            print(temp_spread[j].values)
-            result = ARIMA(temp_spread[j].values, order = (1, 0, 2)).fit()
-            print(result.summary())
-            params = result.params
-            A = params[0]
-            B = params[1]
-            C = params[3]
-            return
-            utils.OU_process_parameter_estimatior(temp_spread[j], )
+            temp_previous_spread = temp_spread[j].dropna()
+            #temp_previous_spread = (temp_previous_spread - temp_previous_spread.mean())/temp_previous_spread.std()
+            temp_p_value_ = ts.adfuller(temp_previous_spread)[1]
+            print(f'p value for adfuller test: {temp_p_value_}')
+            initial_guess = [0,1,1]
+            res = utils.OU_process_parameter_estimatior(temp_previous_spread.values, initial_guess)
+            if res.success:
+                params = res.x
+                temp_parameter.append(params)
+            else:
+                print('Fail maximum likelihhod estimation')
+                print(temp_start)
+                print(temp_selected_pair[j])
+                print(res)
+                print(temp_previous_spread.values)
+                temp_parameter.append([])
+        spread.append([temp_start, temp_selected_pair, temp_spread_info[2], temp_spread_info[3], temp_parameter])
+    f_2 = open(f'temp_data/FTX_modify_spread_{tick}.pkl','wb')
+    pickle.dump(spread, f_2)
+    f_2.close()
         
-
-selected_pair_spread_check_stationary(1)
+# selected_pair_process(1)
+get_spread(1)
+spread_modify(1)
