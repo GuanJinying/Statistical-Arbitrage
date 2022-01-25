@@ -29,19 +29,17 @@ class my_KalmanFilter():
 
 def ou_process_likelihood(params, X):
     n = len(X) - 1
-    mu = params[0]
-    theta = params[1]
-    delta = params[2]
+    mu, theta, delta = params
     result = -n/2
     for i in range(n):
         result -= 1/2*np.log(1-exp(-2*theta))
         result -= theta/(delta**2)*(X[i+1] - mu - (X[i] - mu)*exp(-theta))/(1-exp(-2*theta))
-    return result
+    return -result
 
 def OU_process_parameter_estimatior(X, x_0):
-    tol = 1e-10
-    res = minimize(fun = ou_process_likelihood, x0 = x_0, args = (X), tol = tol)
-    print(res)
+    tol = 1e-6
+    res = minimize(fun = ou_process_likelihood, x0 = x_0, args = (X), tol = tol, method = 'Nelder-Mead')
+    return res
 
 def zeng_formula(n, c, a):
     a = Decimal(a)
